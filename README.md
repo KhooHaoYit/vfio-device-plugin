@@ -19,7 +19,7 @@ In the `manifest` directory there is a YAML file for starting the plugin as a co
 - resourceName: ascend/910b
   vendorId: '19e5'
   deviceId: ['d802']
-- resourceName: ascend/910b
+- resourceName: ascend/310
   vendorId: '19e5'
   deviceId: ['d301']
 ```
