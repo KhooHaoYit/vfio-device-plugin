@@ -1,8 +1,5 @@
-FROM alpine
-LABEL maintainer="hansen@imada.sdu.dk"
+FROM ubuntu:22.04
+LABEL maintainer="binbin36520@gmail.com"
 
-RUN apk update
-RUN apk upgrade
-COPY vfio-device-plugin /usr/bin/vfio-device-plugin
-
+ADD vfio-device-plugin /usr/bin/vfio-device-plugin
 ENTRYPOINT /usr/bin/vfio-device-plugin

@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/fsnotify/fsnotify v1.4.9
+	github.com/jaypipes/ghw v0.12.0
 	golang.org/x/net v0.0.0-20210505214959-0714010a04ed
 	google.golang.org/grpc v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
