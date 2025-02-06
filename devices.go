@@ -1,23 +1,24 @@
 package main
 
 import (
-	"log"
-	"regexp"
 	"io/ioutil"
-	"strings"
+	"log"
 	"os"
+	"regexp"
+	"strings"
 )
 
 type vfioDevice struct {
-	pciName string
-	deviceId string
-	vendorId string
+	pciName    string
+	deviceId   string
+	vendorId   string
 	iommuGroup string
 }
 
 type vfioGroup struct {
 	resourceName string
-	iommuGroups []string
+	iommuGroups  []string
+	pciAddresses []string
 }
 
 func contains(s []string, str string) bool {
@@ -43,7 +44,7 @@ func scanDevices() []vfioDevice {
 		log.Fatal(err)
 	}
 
-	for _,file := range list {
+	for _, file := range list {
 		mode := file.Mode()
 		name := file.Name()
 		if (mode & os.ModeSymlink) == os.ModeSymlink {
@@ -53,7 +54,7 @@ func scanDevices() []vfioDevice {
 		}
 	}
 
-	for _,name := range names {
+	for _, name := range names {
 		fullpath := path + "/" + name
 
 		content, err := ioutil.ReadFile(fullpath + "/vendor")
@@ -85,7 +86,7 @@ func scanDevices() []vfioDevice {
 		}
 		dest = match[1]
 
-		if _,err := os.Stat("/dev/vfio/" + dest); os.IsNotExist(err) {
+		if _, err := os.Stat("/dev/vfio/" + dest); os.IsNotExist(err) {
 			log.Print(err)
 			continue
 		}
@@ -96,9 +97,9 @@ func scanDevices() []vfioDevice {
 		log.Print("IOMMU Group " + dest)
 
 		devices = append(devices, vfioDevice{
-			pciName: name,
-			vendorId: vendor,
-			deviceId: device,
+			pciName:    name,
+			vendorId:   vendor,
+			deviceId:   device,
 			iommuGroup: dest,
 		})
 	}
@@ -109,33 +110,35 @@ func scanDevices() []vfioDevice {
 func groupDevices(devices []vfioDevice, config []vfioConfig) []vfioGroup {
 	var groups []vfioGroup
 
-	for _,group := range config {
-		var matches []string
+	for _, group := range config {
+		var iommuGroups []string
+		var pciAddresses []string
 
-		for i,_ := range devices {
-			if strings.EqualFold(devices[i].vendorId, group.Vendor) == false {
+		for _, device := range devices {
+			if strings.EqualFold(device.vendorId, group.Vendor) == false {
 				continue
 			}
 
-			if contains(group.Device, devices[i].deviceId) == false {
+			if contains(group.Device, device.deviceId) == false {
 				continue
 			}
 
-			matches = append(matches, devices[i].iommuGroup)
-			devices[i].vendorId = ""
+			iommuGroups = append(iommuGroups, device.iommuGroup)
+			pciAddresses = append(pciAddresses, device.pciName)
 		}
 
-		if len(matches) == 0 {
+		if len(iommuGroups) == 0 {
 			continue
 		}
 
 		groups = append(groups, vfioGroup{
 			resourceName: group.Name,
-			iommuGroups: matches,
+			iommuGroups:  iommuGroups,
+			pciAddresses: pciAddresses,
 		})
 
 		log.Print("Creating Resource " + group.Name)
-		log.Print("IOMMU Groups " + strings.Join(matches, " "))
+		log.Print("IOMMU Groups " + strings.Join(iommuGroups, " "))
 	}
 
 	return groups

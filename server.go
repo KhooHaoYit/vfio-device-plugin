@@ -3,18 +3,20 @@
 package main
 
 import (
-	"os"
-	"net"
 	"log"
-	"time"
+	"net"
+	"os"
 	"path"
-	"google.golang.org/grpc"
+	"strings"
+	"time"
+
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 	api "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
 type vfioDevicePlugin struct {
-	devs         []*api.Device
+	vfioGroup    vfioGroup
 	socket       string
 	resourceName string
 
@@ -23,7 +25,7 @@ type vfioDevicePlugin struct {
 }
 
 func (m *vfioDevicePlugin) cleanup() error {
-	err := os.Remove(m.socket);
+	err := os.Remove(m.socket)
 	if err == nil {
 		log.Print("Removing file ", m.socket)
 		return nil
@@ -54,18 +56,9 @@ func dial(unixSocketPath string, timeout time.Duration) (*grpc.ClientConn, error
 	return conn, nil
 }
 
-func NewDevicePlugin(iommuGroups []string, resourceName string, serverSock string) *vfioDevicePlugin {
-	var devices []*api.Device
-
-	for _,value := range iommuGroups {
-		devices = append(devices, &api.Device{
-			ID:     value,
-			Health: api.Healthy,
-		})
-	}
-
+func NewDevicePlugin(vfioGroup vfioGroup, resourceName string, serverSock string) *vfioDevicePlugin {
 	return &vfioDevicePlugin{
-		devs:         devices,
+		vfioGroup:    vfioGroup,
 		socket:       serverSock,
 		resourceName: resourceName,
 		stop:         make(chan interface{}),
@@ -154,7 +147,18 @@ func (m *vfioDevicePlugin) Stop() error {
 }
 
 func (m *vfioDevicePlugin) ListAndWatch(e *api.Empty, s api.DevicePlugin_ListAndWatchServer) error {
-	s.Send(&api.ListAndWatchResponse{Devices: m.devs})
+	var devices []*api.Device
+
+	for _, value := range m.vfioGroup.iommuGroups {
+		devices = append(devices, &api.Device{
+			ID:     value,
+			Health: api.Healthy,
+		})
+	}
+
+	s.Send(&api.ListAndWatchResponse{
+		Devices: devices,
+	})
 
 	for {
 		select {
@@ -170,7 +174,7 @@ func (m *vfioDevicePlugin) Allocate(ctx context.Context, reqs *api.AllocateReque
 	for _, req := range reqs.ContainerRequests {
 		var devices []*api.DeviceSpec
 
-		for _,id := range req.DevicesIDs {
+		for _, id := range req.DevicesIDs {
 			log.Print("Allocating IOMMU Group " + id)
 			devices = append(devices, &api.DeviceSpec{
 				ContainerPath: "/dev/vfio/" + id,
@@ -179,8 +183,21 @@ func (m *vfioDevicePlugin) Allocate(ctx context.Context, reqs *api.AllocateReque
 			})
 		}
 
+		var pciAddresses string
+		pciAddresses = strings.Join(m.vfioGroup.pciAddresses, ",")
+
+		var key string
+		key = "PCI_RESOURCE_" + m.vfioGroup.resourceName
+		key = strings.TrimSpace(key)
+		key = strings.ToUpper(key)
+		key = strings.Replace(key, "/", "_", -1)
+
+		var envs = map[string]string{}
+		envs[key] = pciAddresses
+
 		response := api.ContainerAllocateResponse{
 			Devices: devices,
+			Envs:    envs,
 		}
 
 		responses.ContainerResponses = append(responses.ContainerResponses, &response)

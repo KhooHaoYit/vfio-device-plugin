@@ -5,17 +5,18 @@ package main
 
 import (
 	"flag"
-	"github.com/fsnotify/fsnotify"
-	api "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	"log"
 	"strings"
 	"syscall"
+
+	"github.com/fsnotify/fsnotify"
+	api "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
 type vfioInstance struct {
 	devicePlugin *vfioDevicePlugin
 	resourceName string
-	iommuGroups  []string
+	vfioGroup    vfioGroup
 	socketName   string
 }
 
@@ -28,7 +29,7 @@ func scanVfioDevices(configFile string) []vfioInstance {
 	for _, group := range groups {
 		var instance vfioInstance
 		instance.devicePlugin = nil
-		instance.iommuGroups = group.iommuGroups
+		instance.vfioGroup = group
 		instance.resourceName = group.resourceName
 		instance.socketName = api.DevicePluginPath + strings.ReplaceAll(group.resourceName, "/", "-") + ".sock"
 		instances = append(instances, instance)
@@ -77,7 +78,7 @@ L:
 			}
 
 			for _, instance := range instances {
-				instance.devicePlugin = NewDevicePlugin(instance.iommuGroups, instance.resourceName, instance.socketName)
+				instance.devicePlugin = NewDevicePlugin(instance.vfioGroup, instance.resourceName, instance.socketName)
 				err = instance.devicePlugin.Serve()
 				if err != nil {
 					log.Print("Failed to contact Kubelet, retrying")
