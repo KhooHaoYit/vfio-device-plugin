@@ -177,6 +177,11 @@ func (m *vfioDevicePlugin) Allocate(ctx context.Context, reqs *api.AllocateReque
 		for _, id := range req.DevicesIDs {
 			log.Print("Allocating IOMMU Group " + id)
 			devices = append(devices, &api.DeviceSpec{
+				ContainerPath: "/dev/vfio/vfio",
+				HostPath:      "/dev/vfio/vfio",
+				Permissions:   "rw",
+			})
+			devices = append(devices, &api.DeviceSpec{
 				ContainerPath: "/dev/vfio/" + id,
 				HostPath:      "/dev/vfio/" + id,
 				Permissions:   "rw",
